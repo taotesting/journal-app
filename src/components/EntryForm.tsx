@@ -148,8 +148,8 @@ export default function EntryForm({
 
       router.push('/entries')
       router.refresh()
-    } catch (err: any) {
-      setError(err.message || 'An error occurred')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -171,8 +171,8 @@ export default function EntryForm({
       }
 
       setCalendarEvents(data.events || [])
-    } catch (err: any) {
-      setError('Error fetching calendar: ' + err.message)
+    } catch (err) {
+      setError('Error fetching calendar: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
       setFetchingCalendar(false)
     }
@@ -244,7 +244,7 @@ export default function EntryForm({
 
         {calendarEvents.length === 0 && !fetchingCalendar && (
           <p className="text-sm text-blue-600">
-            Click "Fetch Events" to pull today's calendar
+            Click &quot;Fetch Events&quot; to pull today&apos;s calendar
           </p>
         )}
       </div>

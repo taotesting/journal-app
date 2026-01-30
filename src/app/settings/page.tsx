@@ -3,9 +3,8 @@ import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 
 export default async function SettingsPage() {
-  const supabase = await createServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
-
+  await createServerSupabase()
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto py-8 px-4">
