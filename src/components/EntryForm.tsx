@@ -10,6 +10,13 @@ interface Tag {
   name: string
 }
 
+interface CalendarEvent {
+  id: string
+  summary: string
+  start_time: string
+  end_time: string
+}
+
 interface Entry {
   id: string
   date: string
@@ -54,6 +61,8 @@ export default function EntryForm({
   const [newTag, setNewTag] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
+  const [fetchingCalendar, setFetchingCalendar] = useState(false)
 
   const handleTagToggle = (tagId: string) => {
     const newTags = new Set(tags)
@@ -143,6 +152,43 @@ export default function EntryForm({
     }
   }
 
+  const fetchCalendarEvents = async () => {
+    setFetchingCalendar(true)
+    try {
+      const res = await fetch(`/api/calendar?date=${date}`)
+      const data = await res.json()
+
+      if (data.error) {
+        if (data.needsReauth) {
+          setError('Calendar not connected. Please re-login to grant calendar access.')
+        } else {
+          setError('Error fetching calendar: ' + data.error)
+        }
+        return
+      }
+
+      setCalendarEvents(data.events || [])
+    } catch (err: any) {
+      setError('Error fetching calendar: ' + err.message)
+    } finally {
+      setFetchingCalendar(false)
+    }
+  }
+
+  const stubFromCalendar = () => {
+    if (calendarEvents.length === 0) return
+
+    const eventList = calendarEvents
+      .map((e) => {
+        const start = new Date(e.start_time)
+        const time = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        return `- ${time} ${e.summary}`
+      })
+      .join('\n')
+
+    setMorning((prev) => `${prev}\n\n📅 Today's Calendar:\n${eventList}`)
+  }
+
   return (
     <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 space-y-6">
       {error && (
@@ -162,6 +208,42 @@ export default function EntryForm({
           required
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+
+      {/* Calendar Integration */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-medium text-blue-900">📅 Google Calendar</h3>
+          <button
+            type="button"
+            onClick={fetchCalendarEvents}
+            disabled={fetchingCalendar}
+            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {fetchingCalendar ? 'Loading...' : 'Fetch Events'}
+          </button>
+        </div>
+        
+        {calendarEvents.length > 0 && (
+          <div className="mb-3">
+            <p className="text-sm text-blue-700 mb-2">
+              {calendarEvents.length} events found
+            </p>
+            <button
+              type="button"
+              onClick={stubFromCalendar}
+              className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Stub into Morning Section
+            </button>
+          </div>
+        )}
+
+        {calendarEvents.length === 0 && !fetchingCalendar && (
+          <p className="text-sm text-blue-600">
+            Click "Fetch Events" to pull today's calendar
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
