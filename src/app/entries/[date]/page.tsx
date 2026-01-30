@@ -33,7 +33,9 @@ export default async function EntryPage({ params }: { params: Promise<{ date: st
     .eq('user_id', user.id)
     .order('name')
 
-  const selectedTagIds = entry?.entry_tags?.map((et: any) => et.tags?.id).filter(Boolean) || []
+  const selectedTagIds = entry?.entry_tags
+    ?.map((et: { tags?: { id: string } | null }) => et.tags?.id)
+    .filter((id): id is string => typeof id === 'string') || []
 
   return (
     <div className="min-h-screen bg-gray-50">

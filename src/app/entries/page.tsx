@@ -52,7 +52,9 @@ export default async function EntriesPage() {
 
         <div className="space-y-4">
           {entries?.map((entry) => {
-            const tags = entry.entry_tags?.map((et: any) => et.tags?.name).filter(Boolean) || []
+            const tags = entry.entry_tags
+              ?.map((et: { tags?: { name: string } | null }) => et.tags?.name)
+              .filter((name): name is string => typeof name === 'string') || []
             
             return (
               <Link

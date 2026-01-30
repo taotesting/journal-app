@@ -60,11 +60,11 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json()
-    const events = data.items || []
+    const events: Array<{ summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }> = data.items || []
 
     // Save to database
     if (events.length > 0) {
-      const eventData = events.map((event: any) => ({
+      const eventData = events.map((event) => ({
         user_id: user.id,
         date: date,
         summary: event.summary || 'Busy',
@@ -76,8 +76,8 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ events, source: 'api' })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Calendar API error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
