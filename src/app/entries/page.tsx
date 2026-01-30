@@ -1,10 +1,10 @@
-import { createServerClient } from '@/lib/supabase'
+import { createServerSupabase } from '@/lib/supabase-server'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 
 export default async function EntriesPage() {
-  const supabase = await createServerClient()
+  const supabase = await createServerSupabase()
   
   const { data: { user } } = await supabase.auth.getUser()
   

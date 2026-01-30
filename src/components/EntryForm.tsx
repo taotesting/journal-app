@@ -1,7 +1,7 @@
 'use client'
 
+import { createBrowserClient } from '@supabase/ssr'
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -46,7 +46,10 @@ export default function EntryForm({
   userId,
 }: EntryFormProps) {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   const [date, setDate] = useState(entry?.date || initialDate)
   const [highlightsHigh, setHighlightsHigh] = useState(entry?.highlights_high || '')

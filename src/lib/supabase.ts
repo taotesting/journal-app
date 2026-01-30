@@ -1,12 +1,8 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createBrowserClient } from '@supabase/ssr'
 
 export function createClient() {
-  return createClientComponentClient()
-}
-
-export async function createServerClient() {
-  const cookieStore = await cookies()
-  return createServerComponentClient({ cookies: () => cookieStore })
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 }

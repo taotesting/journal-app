@@ -1,9 +1,9 @@
-import { createServerClient } from '@/lib/supabase'
+import { createServerSupabase } from '@/lib/supabase-server'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 
 export default async function SettingsPage() {
-  const supabase = await createServerClient()
+  const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
   return (

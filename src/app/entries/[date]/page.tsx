@@ -1,10 +1,10 @@
-import { createServerClient } from '@/lib/supabase'
+import { createServerSupabase } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import EntryForm from '@/components/EntryForm'
 
 export default async function EntryPage({ params }: { params: Promise<{ date: string }> }) {
   const { date } = await params
-  const supabase = await createServerClient()
+  const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

@@ -1,10 +1,10 @@
-import { createServerClient } from '@/lib/supabase'
+import { createServerSupabase } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { format } from 'date-fns'
 import EntryForm from '@/components/EntryForm'
 
 export default async function NewEntryPage() {
-  const supabase = await createServerClient()
+  const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

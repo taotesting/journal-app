@@ -1,11 +1,11 @@
-import { createServerClient } from '@/lib/supabase'
+import { createServerSupabase } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date')
 
-  const supabase = await createServerClient()
+  const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
