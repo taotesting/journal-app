@@ -33,7 +33,6 @@ export async function GET() {
   // Calculate streaks
   let currentStreak = 0
   let bestStreak = 0
-  let streakStartDate = ''
   let tempStreak = 1
   let bestStreakStart = ''
 
@@ -93,7 +92,16 @@ export async function GET() {
   const now = new Date()
   const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000)
   
-  const weeklyAverages: Record<string, { week: string; avgP: number; avgL: number; count: number }> = {}
+  interface WeekData {
+    week: string
+    avgP: number
+    avgL: number
+    count: number
+    sumP: number
+    sumL: number
+  }
+  
+  const weeklyAverages: Record<string, WeekData> = {}
   
   entries.forEach(entry => {
     if (entry.date && entry.date >= fourWeeksAgo.toISOString().split('T')[0]) {
@@ -123,7 +131,16 @@ export async function GET() {
     .slice(-4)
 
   // Monthly data for charts (last 12 months)
-  const monthlyData: Record<string, { month: string; avgP: number; avgL: number; count: number }> = {}
+  interface MonthData {
+    month: string
+    avgP: number
+    avgL: number
+    count: number
+    sumP: number
+    sumL: number
+  }
+  
+  const monthlyData: Record<string, MonthData> = {}
   
   entries.forEach(entry => {
     if (entry.date) {

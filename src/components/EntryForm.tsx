@@ -303,6 +303,7 @@ export default function EntryForm({
             rows={4}
           />
         </div>
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="morning">Morning</Label>

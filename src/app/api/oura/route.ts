@@ -1,6 +1,8 @@
 import { createServerSupabase } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
+type SupabaseClient = Awaited<ReturnType<typeof createServerSupabase>>
+
 // Oura Cloud API docs: https://cloud.ouraring.com/docs/
 
 export async function GET(request: Request) {
@@ -46,7 +48,7 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json()
-    const sleepData = data.data || []
+    const sleepData: OuraSleepData[] = data.data || []
 
     // Save to database
     for (const sleep of sleepData) {
@@ -85,7 +87,22 @@ export async function GET(request: Request) {
   }
 }
 
-async function getCachedOuraData(supabase: any, userId: string, startDate: string, endDate: string) {
+interface OuraSleepData {
+  day: string
+  score?: number
+  readiness_score?: number
+  activity_score?: number
+  average_hrv?: number
+  hrv_balance?: { total?: number }
+  resting_heart_rate?: number
+  total_sleep_duration?: number
+  deep_sleep_duration?: number
+  rem_sleep_duration?: number
+  light_sleep_duration?: number
+  awake_duration?: number
+}
+
+async function getCachedOuraData(supabase: SupabaseClient, userId: string, startDate: string, endDate: string): Promise<OuraSleepData[]> {
   const { data } = await supabase
     .from('oura_data')
     .select('*')
@@ -94,5 +111,5 @@ async function getCachedOuraData(supabase: any, userId: string, startDate: strin
     .lte('date', endDate)
     .order('date', { ascending: false })
 
-  return data || []
+  return (data as OuraSleepData[]) || []
 }

@@ -21,13 +21,13 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
     .order('date', { ascending: false })
 
   // Derive everything from single query
-  const entries = entriesData?.map(e => ({
+  const entries = entriesData?.map((e: any) => ({
     ...e,
     entry_tags: e.entry_tags?.map((et: any) => ({ tags: et.tags }))
   })) || []
 
-  const allEntries = entriesData?.map(e => ({ date: e.date, p_score: e.p_score, l_score: e.l_score, weight: e.weight })) || []
-  const entriesByDate = entriesData?.reduce((acc, e) => {
+  const allEntries = entriesData?.map((e: any) => ({ date: e.date, p_score: e.p_score, l_score: e.l_score, weight: e.weight })) || []
+  const entriesByDate = entriesData?.reduce((acc: Record<string, boolean>, e: any) => {
     acc[e.date] = true
     return acc
   }, {} as Record<string, boolean>) || {}
@@ -65,13 +65,13 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   // Filtered entries for display
   let displayEntries = entries
   if (q || tag || from || to) {
-    displayEntries = entries.filter(e => {
+    displayEntries = entries.filter((e: any) => {
       if (q) {
         const searchStr = `${e.highlights_high || ''} ${e.highlights_low || ''} ${e.morning || ''} ${e.afternoon || ''} ${e.night || ''}`.toLowerCase()
         if (!searchStr.includes(q.toLowerCase())) return false
       }
       if (tag) {
-        const tags = e.entry_tags?.map((et: any) => et.tags?.name).filter(Boolean) || []
+        const tags: string[] = e.entry_tags?.map((et: any) => et.tags?.name).filter((name: unknown): name is string => typeof name === 'string') || []
         if (!tags.includes(tag)) return false
       }
       if (from && e.date < from) return false
@@ -278,7 +278,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
         ) : (
           /* List View */
           <div className="space-y-4">
-            {displayEntries.map((entry) => {
+            {displayEntries.map((entry: any) => {
               const tags = entry.entry_tags
                 ?.map((et: any) => et.tags?.name)
                 .filter((name: unknown): name is string => typeof name === 'string') || []

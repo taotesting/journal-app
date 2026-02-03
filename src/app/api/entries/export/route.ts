@@ -1,6 +1,20 @@
 import { createServerSupabase } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
+interface EntryWithTags {
+  date: string
+  p_score?: number | null
+  l_score?: number | null
+  weight?: number | null
+  highlights_high?: string | null
+  highlights_low?: string | null
+  morning?: string | null
+  afternoon?: string | null
+  night?: string | null
+  created_at: string
+  entry_tags?: Array<{ tags?: { name: string } | null }>
+}
+
 export async function GET() {
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
@@ -43,10 +57,10 @@ export async function GET() {
     'Created At'
   ]
 
-  const rows = entries.map(entry => {
+  const rows = entries.map((entry: EntryWithTags) => {
     const tags = entry.entry_tags
-      ?.map((et: any) => et.tags?.name)
-      .filter(Boolean)
+      ?.map((et: { tags?: { name: string } | null }) => et.tags?.name)
+      .filter((name: unknown): name is string => typeof name === 'string')
       .join('; ') || ''
 
     return [
