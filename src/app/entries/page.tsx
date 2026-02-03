@@ -3,22 +3,45 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from 'da
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import EntryCard from '@/components/EntryCard'
-import { Plus, Calendar as CalendarIcon, List, Search, Download, Flame, TrendingUp, BarChart3, Settings } from 'lucide-react'
+import { Plus, Calendar as CalendarIcon, List, Search, Download, Flame, TrendingUp, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 
-export default async function EntriesPage({ searchParams }: { searchParams: Promise<{ view?: string; q?: string; tag?: string; from?: string; to?: string }> }) {
-  const { view, q, tag, from, to } = await searchParams
+const PAGE_SIZE = 10
+
+export default async function EntriesPage({ searchParams }: { searchParams: Promise<{ view?: string; q?: string; tag?: string; from?: string; to?: string; page?: string }> }) {
+  const { view, q, tag, from, to, page } = await searchParams
+  const currentPage = parseInt(page || '1')
+  const offset = (currentPage - 1) * PAGE_SIZE
+  
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   
-  // Optimized: Single query instead of multiple
-  const { data: entriesData } = await supabase
+  // Optimized: Single query with pagination
+  let query = supabase
     .from('entries')
     .select(`
       id, date, p_score, l_score, weight,
       entry_tags (tags (name))
     `)
     .eq('user_id', user?.id)
+
+  // Apply filters before counting/paginating
+  if (q) {
+    query = query.or(`highlights_high.ilike.%${q}%,highlights_low.ilike.%${q}%,morning.ilike.%${q}%,afternoon.ilike.%${q}%,night.ilike.%${q}%`)
+  }
+  if (tag) {
+    query = query.eq('entry_tags.tags.name', tag)
+  }
+  if (from) query = query.gte('date', from)
+  if (to) query = query.lte('date', to)
+
+  // Get all matching entries for count, then paginate
+  const { data: allMatching } = await query
+  const totalCount = allMatching?.length || 0
+
+  // Then get paginated data
+  const { data: entriesData } = await query
     .order('date', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1)
 
   // Derive everything from single query
   const entries = entriesData?.map((e: any) => ({
@@ -26,64 +49,64 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
     entry_tags: e.entry_tags?.map((et: any) => ({ tags: et.tags }))
   })) || []
 
-  const allEntries = entriesData?.map((e: any) => ({ date: e.date, p_score: e.p_score, l_score: e.l_score, weight: e.weight })) || []
-  const entriesByDate = entriesData?.reduce((acc: Record<string, boolean>, e: any) => {
-    acc[e.date] = true
-    return acc
-  }, {} as Record<string, boolean>) || {}
+  // Get analytics (cached, only on first page)
+  let analytics: any = null
+  if (currentPage === 1) {
+    const { data: allEntries } = await supabase
+      .from('entries')
+      .select('date, p_score, l_score, weight')
+      .eq('user_id', user?.id)
 
-  // Calculate streak
-  let currentStreak = 0
-  let bestStreak = 0
-  const sortedDates = allEntries.map(e => e.date).sort((a, b) => 
-    new Date(a!).getTime() - new Date(b!).getTime()
-  )
+    if (allEntries && allEntries.length > 0) {
+      let currentStreak = 0
+      let bestStreak = 0
+      
+      const sortedDates = allEntries.map(e => e.date).sort((a: any, b: any) => 
+        new Date(a).getTime() - new Date(b).getTime()
+      )
 
-  if (sortedDates.length > 0) {
-    const today = new Date().toISOString().split('T')[0]
-    const mostRecent = sortedDates[sortedDates.length - 1]
-    const daysSinceRecent = Math.floor((new Date(today).getTime() - new Date(mostRecent!).getTime()) / (1000 * 60 * 60 * 24))
-    
-    if (daysSinceRecent <= 1) {
-      currentStreak = 1
-      for (let i = sortedDates.length - 1; i > 0; i--) {
-        const diff = Math.floor((new Date(sortedDates[i]!).getTime() - new Date(sortedDates[i - 1]!).getTime()) / (1000 * 60 * 60 * 24))
-        if (diff === 1) currentStreak++
-        else break
+      const today = new Date().toISOString().split('T')[0]
+      const mostRecent = sortedDates[sortedDates.length - 1]
+      const daysSinceRecent = Math.floor((new Date(today).getTime() - new Date(mostRecent).getTime()) / (1000 * 60 * 60 * 24))
+      
+      if (daysSinceRecent <= 1) {
+        currentStreak = 1
+        for (let i = sortedDates.length - 1; i > 0; i--) {
+          const diff = Math.floor((new Date(sortedDates[i]).getTime() - new Date(sortedDates[i - 1]).getTime()) / (1000 * 60 * 60 * 24))
+          if (diff === 1) currentStreak++
+          else break
+        }
       }
-    }
 
-    let tempStreak = 1
-    for (let i = 1; i < sortedDates.length; i++) {
-      const diff = Math.floor((new Date(sortedDates[i]!).getTime() - new Date(sortedDates[i - 1]!).getTime()) / (1000 * 60 * 60 * 24))
-      if (diff === 1) tempStreak++
-      else tempStreak = 1
-      if (tempStreak > bestStreak) bestStreak = tempStreak
+      let tempStreak = 1
+      for (let i = 1; i < sortedDates.length; i++) {
+        const diff = Math.floor((new Date(sortedDates[i]).getTime() - new Date(sortedDates[i - 1]).getTime()) / (1000 * 60 * 60 * 24))
+        if (diff === 1) tempStreak++
+        else tempStreak = 1
+        if (tempStreak > bestStreak) bestStreak = tempStreak
+      }
+
+      analytics = { currentStreak, bestStreak, totalEntries: allEntries.length }
     }
   }
 
-  // Filtered entries for display
-  let displayEntries = entries
-  if (q || tag || from || to) {
-    displayEntries = entries.filter((e: any) => {
-      if (q) {
-        const searchStr = `${e.highlights_high || ''} ${e.highlights_low || ''} ${e.morning || ''} ${e.afternoon || ''} ${e.night || ''}`.toLowerCase()
-        if (!searchStr.includes(q.toLowerCase())) return false
-      }
-      if (tag) {
-        const tags: string[] = e.entry_tags?.map((et: any) => et.tags?.name).filter((name: unknown): name is string => typeof name === 'string') || []
-        if (!tags.includes(tag)) return false
-      }
-      if (from && e.date < from) return false
-      if (to && e.date > to) return false
-      return true
-    })
-  }
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   const today = new Date()
   const monthStart = startOfMonth(today)
   const monthEnd = endOfMonth(today)
   const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
+
+  // Get entries for calendar (all, not paginated)
+  const { data: calendarEntries } = await supabase
+    .from('entries')
+    .select('date')
+    .eq('user_id', user?.id)
+
+  const entriesByDate = calendarEntries?.reduce((acc: Record<string, boolean>, e: any) => {
+    acc[e.date] = true
+    return acc
+  }, {} as Record<string, boolean>) || {}
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -114,53 +137,55 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="max-w-5xl mx-auto py-6 px-4">
-        {/* Analytics Widget */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-xl border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Flame className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold text-zinc-900">{currentStreak}</p>
-                <p className="text-sm text-zinc-500">Day Streak</p>
+        {/* Analytics Widget - Only on first page */}
+        {currentPage === 1 && analytics && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-xl border border-zinc-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Flame className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-zinc-900">{analytics.currentStreak}</p>
+                  <p className="text-sm text-zinc-500">Day Streak</p>
+                </div>
               </div>
             </div>
+            <div className="bg-white rounded-xl border border-zinc-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-zinc-900">{analytics.bestStreak}</p>
+                  <p className="text-sm text-zinc-500">Best Streak</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-zinc-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <BarChart3 className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-zinc-900">{analytics.totalEntries}</p>
+                  <p className="text-sm text-zinc-500">Total Entries</p>
+                </div>
+              </div>
+            </div>
+            <a href="/api/entries/export" className="bg-white rounded-xl border border-zinc-200 p-4 hover:border-zinc-300 transition-colors group">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                  <Download className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-zinc-900">CSV</p>
+                  <p className="text-sm text-zinc-500">Export Data</p>
+                </div>
+              </div>
+            </a>
           </div>
-          <div className="bg-white rounded-xl border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold text-zinc-900">{bestStreak}</p>
-                <p className="text-sm text-zinc-500">Best Streak</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold text-zinc-900">{allEntries.length}</p>
-                <p className="text-sm text-zinc-500">Total Entries</p>
-              </div>
-            </div>
-          </div>
-          <a href="/api/entries/export" className="bg-white rounded-xl border border-zinc-200 p-4 hover:border-zinc-300 transition-colors group">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                <Download className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold text-zinc-900">CSV</p>
-                <p className="text-sm text-zinc-500">Export Data</p>
-              </div>
-            </div>
-          </a>
-        </div>
+        )}
 
         {/* Search & Filter */}
         <form className="bg-white rounded-xl border border-zinc-200 p-4 mb-6">
@@ -234,7 +259,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
             </Link>
           </div>
           <p className="text-sm text-zinc-500">
-            {displayEntries.length} entries
+            {totalCount} entries
           </p>
         </div>
 
@@ -278,7 +303,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
         ) : (
           /* List View */
           <div className="space-y-4">
-            {displayEntries.map((entry: any) => {
+            {entries.map((entry: any) => {
               const tags = entry.entry_tags
                 ?.map((et: any) => et.tags?.name)
                 .filter((name: unknown): name is string => typeof name === 'string') || []
@@ -288,7 +313,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
               )
             })}
 
-            {displayEntries.length === 0 && (
+            {entries.length === 0 && (
               <div className="text-center py-16">
                 <p className="text-zinc-500 mb-4">No entries found</p>
                 <Link
@@ -297,6 +322,34 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
                 >
                   <Plus className="w-4 h-4" />
                   Create your first entry
+                </Link>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-6">
+                <Link
+                  href={`/entries?page=${currentPage - 1}${q ? `&q=${q}` : ''}${tag ? `&tag=${tag}` : ''}`}
+                  className={`p-2 rounded-lg border border-zinc-200 transition-colors ${
+                    currentPage === 1 ? 'opacity-50 pointer-events-none' : 'hover:bg-zinc-50'
+                  }`}
+                  aria-disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Link>
+                
+                <span className="px-4 text-sm text-zinc-500">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <Link
+                  href={`/entries?page=${currentPage + 1}${q ? `&q=${q}` : ''}${tag ? `&tag=${tag}` : ''}`}
+                  className={`p-2 rounded-lg border border-zinc-200 transition-colors ${
+                    currentPage === totalPages ? 'opacity-50 pointer-events-none' : 'hover:bg-zinc-50'
+                  }`}
+                >
+                  <ChevronRight className="w-5 h-5" />
                 </Link>
               </div>
             )}
