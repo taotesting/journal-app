@@ -56,7 +56,17 @@ export async function GET(request: Request) {
     )
 
     if (!response.ok) {
-      throw new Error('Failed to fetch calendar')
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Google Calendar API error:', response.status, errorData)
+
+      if (response.status === 401) {
+        return NextResponse.json({
+          error: 'Calendar access expired. Please sign out and re-login to reconnect.',
+          needsReauth: true
+        }, { status: 401 })
+      }
+
+      throw new Error(errorData.error?.message || `Google Calendar error: ${response.status}`)
     }
 
     const data = await response.json()
