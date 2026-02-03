@@ -1,9 +1,21 @@
 import { createServerSupabase } from '@/lib/supabase-server'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
+import { Check, Plus, Calendar, MapPin, Activity, Settings2 } from 'lucide-react'
 
 export default async function SettingsPage() {
-  await createServerSupabase()
+  const supabase = await createServerSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Check integration status
+  const { data: ouraIntegration } = await supabase
+    .from('integrations')
+    .select('*')
+    .eq('user_id', user?.id)
+    .eq('provider', 'oura')
+    .single()
+
+  const ouraConnected = !!ouraIntegration?.access_token
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -24,40 +36,107 @@ export default async function SettingsPage() {
           </div>
           
           <div className="divide-y divide-zinc-100">
+            {/* Google Calendar */}
             <div className="px-5 py-4 flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-zinc-900">Google Calendar</h3>
-                <p className="text-sm text-zinc-500 mt-0.5">
-                  Sync calendar events for auto-stubbing
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-zinc-900">Google Calendar</h3>
+                  <p className="text-sm text-zinc-500 mt-0.5">
+                    Sync calendar events for auto-stubbing
+                  </p>
+                </div>
               </div>
-              <span className="text-sm px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full">
+              <span className="flex items-center gap-1.5 text-sm px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full">
+                <Check className="w-3.5 h-3.5" />
                 Connected
               </span>
             </div>
 
+            {/* Google Maps */}
             <div className="px-5 py-4 flex items-center justify-between opacity-50">
-              <div>
-                <h3 className="font-medium text-zinc-900">Google Maps</h3>
-                <p className="text-sm text-zinc-500 mt-0.5">
-                  Track places you visit
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <MapPin className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-zinc-900">Google Maps</h3>
+                  <p className="text-sm text-zinc-500 mt-0.5">
+                    Track places you visit
+                  </p>
+                </div>
               </div>
               <span className="text-sm px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full">
                 Coming Soon
               </span>
             </div>
 
-            <div className="px-5 py-4 flex items-center justify-between opacity-50">
+            {/* Oura Ring */}
+            <div className="px-5 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <Activity className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-zinc-900">Oura Ring</h3>
+                    <p className="text-sm text-zinc-500 mt-0.5">
+                      Sync sleep, HRV, and health metrics
+                    </p>
+                  </div>
+                </div>
+                {ouraConnected ? (
+                  <span className="flex items-center gap-1.5 text-sm px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full">
+                    <Check className="w-3.5 h-3.5" />
+                    Connected
+                  </span>
+                ) : (
+                  <a
+                    href="/api/oauth/oura"
+                    className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Connect
+                  </a>
+                )}
+              </div>
+              
+              {ouraConnected && (
+                <div className="mt-3 ml-12">
+                  <a
+                    href="/api/oura"
+                    className="text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    Sync Oura data →
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Data Management */}
+        <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden mt-6">
+          <div className="px-5 py-4 border-b border-zinc-100">
+            <h2 className="font-medium text-zinc-900">Data</h2>
+          </div>
+          
+          <div className="divide-y divide-zinc-100">
+            <div className="px-5 py-4 flex items-center justify-between">
               <div>
-                <h3 className="font-medium text-zinc-900">Oura Ring</h3>
+                <h3 className="font-medium text-zinc-900">Export Journal</h3>
                 <p className="text-sm text-zinc-500 mt-0.5">
-                  Sync sleep and health metrics
+                  Download all your entries as CSV
                 </p>
               </div>
-              <span className="text-sm px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full">
-                Coming Soon
-              </span>
+              <a
+                href="/api/entries/export"
+                className="text-sm px-3 py-1.5 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
+              >
+                Export
+              </a>
             </div>
           </div>
         </div>

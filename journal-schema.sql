@@ -68,9 +68,27 @@ create table oura_data (
   activity_score int,
   hrv numeric,
   resting_heart_rate int,
+  total_sleep_duration numeric,
+  deep_sleep_duration numeric,
+  rem_sleep_duration numeric,
+  light_sleep_duration numeric,
+  awake_duration numeric,
   data jsonb, -- store full response
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(user_id, date)
+);
+
+-- Integrations table (OAuth tokens)
+create table integrations (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  provider text not null,
+  access_token text,
+  refresh_token text,
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(user_id, provider)
 );
 
 -- Row Level Security (RLS) policies
@@ -153,6 +171,23 @@ create policy "Users can view their own oura data"
   on oura_data for all
   using (auth.uid() = user_id);
 
+-- Integrations policies
+create policy "Users can view their own integrations"
+  on integrations for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert their own integrations"
+  on integrations for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can update their own integrations"
+  on integrations for update
+  using (auth.uid() = user_id);
+
+create policy "Users can delete their own integrations"
+  on integrations for delete
+  using (auth.uid() = user_id);
+
 -- Function to update updated_at timestamp
 create or replace function update_updated_at_column()
 returns trigger as $$
@@ -165,5 +200,11 @@ $$ language plpgsql;
 -- Trigger for entries updated_at
 create trigger update_entries_updated_at
   before update on entries
+  for each row
+  execute procedure update_updated_at_column();
+
+-- Trigger for integrations updated_at
+create trigger update_integrations_updated_at
+  before update on integrations
   for each row
   execute procedure update_updated_at_column();
