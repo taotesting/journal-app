@@ -15,16 +15,16 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   
-  // Optimized: Single query with pagination
+  // Build query with filters
   let query = supabase
     .from('entries')
     .select(`
       id, date, p_score, l_score, weight,
       entry_tags (tags (name))
-    `)
+    `, { count: 'exact' })
     .eq('user_id', user?.id)
 
-  // Apply filters before counting/paginating
+  // Apply filters
   if (q) {
     query = query.or(`highlights_high.ilike.%${q}%,highlights_low.ilike.%${q}%,morning.ilike.%${q}%,afternoon.ilike.%${q}%,night.ilike.%${q}%`)
   }
@@ -34,14 +34,12 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   if (from) query = query.gte('date', from)
   if (to) query = query.lte('date', to)
 
-  // Get all matching entries for count, then paginate
-  const { data: allMatching } = await query
-  const totalCount = allMatching?.length || 0
-
-  // Then get paginated data
-  const { data: entriesData } = await query
+  // Single query with count and pagination
+  const { data: entriesData, count } = await query
     .order('date', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
+
+  const totalCount = count || 0
 
   // Derive everything from single query
   const entries = entriesData?.map((e: any) => ({
@@ -97,11 +95,13 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   const monthEnd = endOfMonth(today)
   const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
-  // Get entries for calendar (all, not paginated)
+  // Get entries for calendar (only current month for efficiency)
   const { data: calendarEntries } = await supabase
     .from('entries')
     .select('date')
     .eq('user_id', user?.id)
+    .gte('date', format(monthStart, 'yyyy-MM-dd'))
+    .lte('date', format(monthEnd, 'yyyy-MM-dd'))
 
   const entriesByDate = calendarEntries?.reduce((acc: Record<string, boolean>, e: any) => {
     acc[e.date] = true

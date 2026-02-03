@@ -1,9 +1,9 @@
 'use client'
 
-import { createBrowserClient } from '@supabase/ssr'
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useSupabase } from '@/lib/supabase'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -43,29 +43,45 @@ interface EntryFormProps {
   userId: string
 }
 
+// Consolidated form state type
+interface FormState {
+  date: string
+  highlightsHigh: string
+  highlightsLow: string
+  morning: string
+  afternoon: string
+  night: string
+  pScore: number
+  lScore: number
+  weight: string
+}
+
 export default function EntryForm({
   initialDate,
   entry,
   selectedTagIds = [],
-  availableTags,
+  availableTags: initialTags,
   userId,
 }: EntryFormProps) {
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = useSupabase()
 
-  const [date, setDate] = useState(entry?.date || initialDate)
-  const [highlightsHigh, setHighlightsHigh] = useState(entry?.highlights_high || '')
-  const [highlightsLow, setHighlightsLow] = useState(entry?.highlights_low || '')
-  const [morning, setMorning] = useState(entry?.morning || '')
-  const [afternoon, setAfternoon] = useState(entry?.afternoon || '')
-  const [night, setNight] = useState(entry?.night || '')
-  const [pScore, setPScore] = useState(entry?.p_score ?? 5)
-  const [lScore, setLScore] = useState(entry?.l_score ?? 5)
-  const [weight, setWeight] = useState(entry?.weight?.toString() || '')
-  const [tags, setTags] = useState<Set<string>>(new Set(selectedTagIds))
+  // Consolidated form state to reduce re-renders
+  const [form, setForm] = useState<FormState>(() => ({
+    date: entry?.date || initialDate,
+    highlightsHigh: entry?.highlights_high || '',
+    highlightsLow: entry?.highlights_low || '',
+    morning: entry?.morning || '',
+    afternoon: entry?.afternoon || '',
+    night: entry?.night || '',
+    pScore: entry?.p_score ?? 5,
+    lScore: entry?.l_score ?? 5,
+    weight: entry?.weight?.toString() || '',
+  }))
+
+  // UI state
+  const [tags, setTags] = useState<Set<string>>(() => new Set(selectedTagIds))
+  const [availableTags, setAvailableTags] = useState<TagType[]>(initialTags)
   const [newTag, setNewTag] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -73,38 +89,46 @@ export default function EntryForm({
   const [fetchingCalendar, setFetchingCalendar] = useState(false)
   const [calendarNeedsAuth, setCalendarNeedsAuth] = useState(false)
 
-  const handleTagToggle = (tagId: string) => {
-    const newTags = new Set(tags)
-    if (newTags.has(tagId)) {
-      newTags.delete(tagId)
-    } else {
-      newTags.add(tagId)
-    }
-    setTags(newTags)
-  }
+  // Memoized form field updater
+  const updateField = useCallback(<K extends keyof FormState>(field: K, value: FormState[K]) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }, [])
 
-  const handleAddTag = async () => {
+  const handleTagToggle = useCallback((tagId: string) => {
+    setTags(prev => {
+      const newTags = new Set(prev)
+      if (newTags.has(tagId)) {
+        newTags.delete(tagId)
+      } else {
+        newTags.add(tagId)
+      }
+      return newTags
+    })
+  }, [])
+
+  const handleAddTag = useCallback(async () => {
     if (!newTag.trim()) return
-    
-    const { data, error } = await supabase
+
+    const { data, error: tagError } = await supabase
       .from('tags')
       .insert({ user_id: userId, name: newTag.trim() })
       .select()
       .single()
 
-    if (error) {
-      setError('Error creating tag: ' + error.message)
+    if (tagError) {
+      setError('Error creating tag: ' + tagError.message)
       return
     }
 
     if (data) {
-      availableTags.push(data)
-      setTags(new Set([...tags, data.id]))
+      // Create new array instead of mutating prop
+      setAvailableTags(prev => [...prev, data])
+      setTags(prev => new Set([...prev, data.id]))
       setNewTag('')
     }
-  }
+  }, [newTag, supabase, userId])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
@@ -112,15 +136,15 @@ export default function EntryForm({
     try {
       const entryData = {
         user_id: userId,
-        date,
-        highlights_high: highlightsHigh || null,
-        highlights_low: highlightsLow || null,
-        morning: morning || null,
-        afternoon: afternoon || null,
-        night: night || null,
-        p_score: pScore,
-        l_score: lScore,
-        weight: weight ? parseFloat(weight) : null,
+        date: form.date,
+        highlights_high: form.highlightsHigh || null,
+        highlights_low: form.highlightsLow || null,
+        morning: form.morning || null,
+        afternoon: form.afternoon || null,
+        night: form.night || null,
+        p_score: form.pScore,
+        l_score: form.lScore,
+        weight: form.weight ? parseFloat(form.weight) : null,
       }
 
       const { data: entryResult, error: entryError } = await supabase
@@ -156,15 +180,15 @@ export default function EntryForm({
     } finally {
       setLoading(false)
     }
-  }
+  }, [form, tags, userId, supabase, router])
 
-  const fetchCalendarEvents = async () => {
+  const fetchCalendarEvents = useCallback(async () => {
     setFetchingCalendar(true)
     setError('')
     setCalendarNeedsAuth(false)
-    
+
     try {
-      const res = await fetch(`/api/calendar?date=${date}`)
+      const res = await fetch(`/api/calendar?date=${form.date}`)
       const data = await res.json()
 
       if (data.error) {
@@ -183,15 +207,14 @@ export default function EntryForm({
     } finally {
       setFetchingCalendar(false)
     }
-  }
+  }, [form.date])
 
-  const reauthenticateCalendar = async () => {
-    // Sign out and redirect to login with hint to re-grant calendar access
+  const reauthenticateCalendar = useCallback(async () => {
     await supabase.auth.signOut()
     router.push('/login?reauth=calendar')
-  }
+  }, [supabase, router])
 
-  const stubFromCalendar = () => {
+  const stubFromCalendar = useCallback(() => {
     if (calendarEvents.length === 0) return
 
     const eventList = calendarEvents
@@ -202,8 +225,8 @@ export default function EntryForm({
       })
       .join('\n')
 
-    setMorning((prev) => `${prev}\n\n📅 Today's Calendar:\n${eventList}`)
-  }
+    updateField('morning', `${form.morning}\n\n📅 Today's Calendar:\n${eventList}`)
+  }, [calendarEvents, form.morning, updateField])
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -219,8 +242,8 @@ export default function EntryForm({
         <Input
           id="date"
           type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
+          value={form.date}
+          onChange={(e) => updateField('date', e.target.value)}
           required
         />
       </div>
@@ -287,8 +310,8 @@ export default function EntryForm({
           <Textarea
             id="highlights-high"
             placeholder="What went well today?"
-            value={highlightsHigh}
-            onChange={(e) => setHighlightsHigh(e.target.value)}
+            value={form.highlightsHigh}
+            onChange={(e) => updateField('highlightsHigh', e.target.value)}
             rows={4}
           />
         </div>
@@ -298,8 +321,8 @@ export default function EntryForm({
           <Textarea
             id="highlights-low"
             placeholder="What could have been better?"
-            value={highlightsLow}
-            onChange={(e) => setHighlightsLow(e.target.value)}
+            value={form.highlightsLow}
+            onChange={(e) => updateField('highlightsLow', e.target.value)}
             rows={4}
           />
         </div>
@@ -310,8 +333,8 @@ export default function EntryForm({
         <Textarea
           id="morning"
           placeholder="How was your morning?"
-          value={morning}
-          onChange={(e) => setMorning(e.target.value)}
+          value={form.morning}
+          onChange={(e) => updateField('morning', e.target.value)}
           rows={5}
         />
       </div>
@@ -321,8 +344,8 @@ export default function EntryForm({
         <Textarea
           id="afternoon"
           placeholder="How was your afternoon?"
-          value={afternoon}
-          onChange={(e) => setAfternoon(e.target.value)}
+          value={form.afternoon}
+          onChange={(e) => updateField('afternoon', e.target.value)}
           rows={5}
         />
       </div>
@@ -332,8 +355,8 @@ export default function EntryForm({
         <Textarea
           id="night"
           placeholder="How was your evening?"
-          value={night}
-          onChange={(e) => setNight(e.target.value)}
+          value={form.night}
+          onChange={(e) => updateField('night', e.target.value)}
           rows={5}
         />
       </div>
@@ -342,11 +365,11 @@ export default function EntryForm({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <Label>P Score</Label>
-            <span className="text-sm font-medium text-zinc-600">{pScore}/10</span>
+            <span className="text-sm font-medium text-zinc-600">{form.pScore}/10</span>
           </div>
           <Slider
-            value={[pScore]}
-            onValueChange={([value]) => setPScore(value)}
+            value={[form.pScore]}
+            onValueChange={([value]) => updateField('pScore', value)}
             min={1}
             max={10}
             step={1}
@@ -356,11 +379,11 @@ export default function EntryForm({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <Label>L Score</Label>
-            <span className="text-sm font-medium text-zinc-600">{lScore}/10</span>
+            <span className="text-sm font-medium text-zinc-600">{form.lScore}/10</span>
           </div>
           <Slider
-            value={[lScore]}
-            onValueChange={([value]) => setLScore(value)}
+            value={[form.lScore]}
+            onValueChange={([value]) => updateField('lScore', value)}
             min={1}
             max={10}
             step={1}
@@ -374,8 +397,8 @@ export default function EntryForm({
             type="number"
             step="0.1"
             placeholder="lbs"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
+            value={form.weight}
+            onChange={(e) => updateField('weight', e.target.value)}
           />
         </div>
       </div>

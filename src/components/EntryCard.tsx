@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ChevronRight } from 'lucide-react'
@@ -13,7 +14,7 @@ interface EntryCardProps {
   tags: string[]
 }
 
-export default function EntryCard({ entry, tags }: EntryCardProps) {
+const EntryCard = memo(function EntryCard({ entry, tags }: EntryCardProps) {
   return (
     <Link
       href={`/entries/${entry.date}`}
@@ -60,4 +61,6 @@ export default function EntryCard({ entry, tags }: EntryCardProps) {
       )}
     </Link>
   )
-}
+})
+
+export default EntryCard

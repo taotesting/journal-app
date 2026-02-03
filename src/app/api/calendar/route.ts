@@ -21,7 +21,10 @@ export async function GET(request: Request) {
     .order('start_time')
 
   if (cachedEvents && cachedEvents.length > 0) {
-    return NextResponse.json({ events: cachedEvents, source: 'cache' })
+    return NextResponse.json(
+      { events: cachedEvents, source: 'cache' },
+      { headers: { 'Cache-Control': 'private, max-age=300' } } // Cache for 5 minutes
+    )
   }
 
   // Get the access token from Supabase

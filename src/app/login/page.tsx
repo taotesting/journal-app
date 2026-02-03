@@ -1,14 +1,12 @@
 'use client'
 
-import { createBrowserClient } from '@supabase/ssr'
+import { useCallback } from 'react'
+import { useSupabase } from '@/lib/supabase'
 
 export default function Login() {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = useSupabase()
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -19,7 +17,7 @@ export default function Login() {
     if (error) {
       console.error('Error logging in:', error.message)
     }
-  }
+  }, [supabase])
 
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
