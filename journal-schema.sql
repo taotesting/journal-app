@@ -16,10 +16,14 @@ create table entries (
   p_score int check (p_score >= 1 and p_score <= 10),
   l_score int check (l_score >= 1 and l_score <= 10),
   weight numeric(5,2),
+  complete boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(user_id, date)
 );
+
+-- Migration for existing databases:
+-- ALTER TABLE entries ADD COLUMN complete BOOLEAN DEFAULT false;
 
 -- Tags table
 create table tags (

@@ -3,7 +3,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from 'da
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import EntryCard from '@/components/EntryCard'
-import { Plus, Calendar as CalendarIcon, List, Search, Download, Flame, TrendingUp, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Calendar as CalendarIcon, List, Search, BarChart3, Settings, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 
 const PAGE_SIZE = 10
 
@@ -52,39 +52,35 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   if (currentPage === 1) {
     const { data: allEntries } = await supabase
       .from('entries')
-      .select('date, p_score, l_score, weight')
+      .select('date, complete')
       .eq('user_id', user?.id)
 
     if (allEntries && allEntries.length > 0) {
-      let currentStreak = 0
-      let bestStreak = 0
-      
-      const sortedDates = allEntries.map(e => e.date).sort((a: any, b: any) => 
+      const sortedDates = allEntries.map(e => e.date).sort((a: string, b: string) =>
         new Date(a).getTime() - new Date(b).getTime()
       )
 
+      const firstEntryDate = sortedDates[0]
       const today = new Date().toISOString().split('T')[0]
-      const mostRecent = sortedDates[sortedDates.length - 1]
-      const daysSinceRecent = Math.floor((new Date(today).getTime() - new Date(mostRecent).getTime()) / (1000 * 60 * 60 * 24))
-      
-      if (daysSinceRecent <= 1) {
-        currentStreak = 1
-        for (let i = sortedDates.length - 1; i > 0; i--) {
-          const diff = Math.floor((new Date(sortedDates[i]).getTime() - new Date(sortedDates[i - 1]).getTime()) / (1000 * 60 * 60 * 24))
-          if (diff === 1) currentStreak++
-          else break
+
+      // Create a set of dates with entries and a map for completion status
+      const entryDates = new Set(allEntries.map(e => e.date))
+      const completionMap = new Map(allEntries.map(e => [e.date, e.complete]))
+
+      // Count incomplete days (missing or not marked complete) from first entry to today
+      let incompleteDays = 0
+      const currentDate = new Date(firstEntryDate)
+      const todayDate = new Date(today)
+
+      while (currentDate <= todayDate) {
+        const dateStr = currentDate.toISOString().split('T')[0]
+        if (!entryDates.has(dateStr) || !completionMap.get(dateStr)) {
+          incompleteDays++
         }
+        currentDate.setDate(currentDate.getDate() + 1)
       }
 
-      let tempStreak = 1
-      for (let i = 1; i < sortedDates.length; i++) {
-        const diff = Math.floor((new Date(sortedDates[i]).getTime() - new Date(sortedDates[i - 1]).getTime()) / (1000 * 60 * 60 * 24))
-        if (diff === 1) tempStreak++
-        else tempStreak = 1
-        if (tempStreak > bestStreak) bestStreak = tempStreak
-      }
-
-      analytics = { currentStreak, bestStreak, totalEntries: allEntries.length }
+      analytics = { totalEntries: allEntries.length, incompleteDays }
     }
   }
 
@@ -98,15 +94,21 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   // Get entries for calendar (only current month for efficiency)
   const { data: calendarEntries } = await supabase
     .from('entries')
-    .select('date')
+    .select('date, complete')
     .eq('user_id', user?.id)
     .gte('date', format(monthStart, 'yyyy-MM-dd'))
     .lte('date', format(monthEnd, 'yyyy-MM-dd'))
 
-  const entriesByDate = calendarEntries?.reduce((acc: Record<string, boolean>, e: any) => {
-    acc[e.date] = true
+  // Map entries by date with completion status: 'complete' | 'incomplete' | undefined
+  const entriesByDate = calendarEntries?.reduce((acc: Record<string, 'complete' | 'incomplete'>, e: any) => {
+    acc[e.date] = e.complete ? 'complete' : 'incomplete'
     return acc
-  }, {} as Record<string, boolean>) || {}
+  }, {} as Record<string, 'complete' | 'incomplete'>) || {}
+
+  // Find first entry date for determining "missing" days
+  const firstEntryDate = calendarEntries && calendarEntries.length > 0
+    ? calendarEntries.map(e => e.date).sort()[0]
+    : null
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -139,29 +141,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
       <div className="max-w-5xl mx-auto py-6 px-4">
         {/* Analytics Widget - Only on first page */}
         {currentPage === 1 && analytics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl border border-zinc-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Flame className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-zinc-900">{analytics.currentStreak}</p>
-                  <p className="text-sm text-zinc-500">Day Streak</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-zinc-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-zinc-900">{analytics.bestStreak}</p>
-                  <p className="text-sm text-zinc-500">Best Streak</p>
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-2 gap-3 mb-6">
             <div className="bg-white rounded-xl border border-zinc-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -173,17 +153,17 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
                 </div>
               </div>
             </div>
-            <a href="/api/entries/export" className="bg-white rounded-xl border border-zinc-200 p-4 hover:border-zinc-300 transition-colors group">
+            <div className="bg-white rounded-xl border border-zinc-200 p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                  <Download className="w-5 h-5 text-purple-600" />
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold text-zinc-900">CSV</p>
-                  <p className="text-sm text-zinc-500">Export Data</p>
+                  <p className="text-2xl font-semibold text-zinc-900">{analytics.incompleteDays}</p>
+                  <p className="text-sm text-zinc-500">Incomplete Days</p>
                 </div>
               </div>
-            </a>
+            </div>
           </div>
         )}
 
@@ -280,24 +260,52 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
               ))}
               {calendarDays.map((day) => {
                 const dateStr = format(day, 'yyyy-MM-dd')
-                const hasEntry = entriesByDate[dateStr]
-                
+                const entryStatus = entriesByDate[dateStr]
+                const isFutureDay = day > today
+                const isBeforeFirstEntry = firstEntryDate && dateStr < firstEntryDate
+                const isMissingDay = !entryStatus && !isFutureDay && !isBeforeFirstEntry && firstEntryDate
+
+                // Determine background color based on state
+                let bgClass = 'text-zinc-600 hover:bg-zinc-50' // default: future or before first entry
+                if (entryStatus === 'complete') {
+                  bgClass = 'bg-emerald-100 text-emerald-900 hover:bg-emerald-200'
+                } else if (entryStatus === 'incomplete') {
+                  bgClass = 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                } else if (isMissingDay) {
+                  bgClass = 'bg-red-100 text-red-900 hover:bg-red-200'
+                }
+
                 return (
                   <Link
                     key={dateStr}
-                    href={hasEntry ? `/entries/${dateStr}` : `/entries/new?date=${dateStr}`}
-                    className={`h-10 flex items-center justify-center rounded-lg text-sm transition-colors ${
-                      isToday(day)
-                        ? 'bg-zinc-900 text-white font-medium'
-                        : hasEntry
-                        ? 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200'
-                        : 'text-zinc-600 hover:bg-zinc-50'
+                    href={entryStatus ? `/entries/${dateStr}` : `/entries/new?date=${dateStr}`}
+                    className={`h-10 flex items-center justify-center rounded-lg text-sm transition-colors ${bgClass} ${
+                      isToday(day) ? 'ring-2 ring-zinc-900 ring-offset-1 font-medium' : ''
                     }`}
                   >
                     {format(day, 'd')}
                   </Link>
                 )
               })}
+            </div>
+            {/* Calendar Legend */}
+            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-zinc-100 text-xs text-zinc-600">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200" />
+                <span>Complete</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-amber-100 border border-amber-200" />
+                <span>Incomplete</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-red-100 border border-red-200" />
+                <span>Missing</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-white border border-zinc-200" />
+                <span>Future</span>
+              </div>
             </div>
           </div>
         ) : (

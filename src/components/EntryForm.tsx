@@ -33,6 +33,7 @@ interface Entry {
   p_score?: number
   l_score?: number
   weight?: number
+  complete?: boolean
 }
 
 interface EntryFormProps {
@@ -83,6 +84,7 @@ export default function EntryForm({
   const [tags, setTags] = useState<Set<string>>(() => new Set(selectedTagIds))
   const [availableTags, setAvailableTags] = useState<TagType[]>(initialTags)
   const [newTag, setNewTag] = useState('')
+  const [complete, setComplete] = useState(entry?.complete ?? false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
@@ -145,6 +147,7 @@ export default function EntryForm({
         p_score: form.pScore,
         l_score: form.lScore,
         weight: form.weight ? parseFloat(form.weight) : null,
+        complete,
       }
 
       const { data: entryResult, error: entryError } = await supabase
@@ -437,6 +440,22 @@ export default function EntryForm({
             <Plus className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Mark as Complete */}
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={complete}
+            onChange={(e) => setComplete(e.target.checked)}
+            className="w-5 h-5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+          />
+          <div>
+            <span className="font-medium text-emerald-900">Mark as Complete</span>
+            <p className="text-sm text-emerald-600">Check this when you&apos;ve finished your entry for the day</p>
+          </div>
+        </label>
       </div>
 
       <div className="flex gap-3 pt-4">
