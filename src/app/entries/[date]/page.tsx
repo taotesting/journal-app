@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import EntryForm from '@/components/EntryForm'
+import TimelineWidget from '@/components/TimelineWidget'
+import { parseEntry } from '@/lib/parse-bullets'
 import { ArrowLeft } from 'lucide-react'
 
 export default async function EntryPage({ params }: { params: Promise<{ date: string }> }) {
@@ -36,6 +38,19 @@ export default async function EntryPage({ params }: { params: Promise<{ date: st
     .eq('user_id', user.id)
     .order('name')
 
+  // Fetch location data for this date
+  const { data: locationData } = await supabase
+    .from('location_data')
+    .select('places')
+    .eq('user_id', user.id)
+    .eq('date', date)
+    .single()
+
+  // Parse entry bullets for timeline
+  const parsedBullets = entry
+    ? parseEntry(entry.morning, entry.afternoon, entry.night, date)
+    : { all: [] }
+
   const selectedTagIds = entry?.entry_tags
     ?.map((et: { tags?: { id: string } | null }) => et.tags?.id)
     .filter((id: unknown): id is string => typeof id === 'string') || []
@@ -63,8 +78,18 @@ export default async function EntryPage({ params }: { params: Promise<{ date: st
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto py-6 px-4">
-        <EntryForm 
+      <div className="max-w-2xl mx-auto py-6 px-4 space-y-6">
+        {/* Timeline Widget - shows if there's location data or entry content */}
+        {(locationData?.places?.length > 0 || parsedBullets.all.length > 0) && (
+          <TimelineWidget
+            date={date}
+            places={locationData?.places || []}
+            bullets={parsedBullets.all}
+            compact={true}
+          />
+        )}
+
+        <EntryForm
           initialDate={date}
           entry={entry || undefined}
           selectedTagIds={selectedTagIds}

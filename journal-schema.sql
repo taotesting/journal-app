@@ -52,7 +52,18 @@ create table calendar_events (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Location data table (for future integration)
+-- Location data table (stores place visits from Google Takeout)
+-- The 'places' column stores an array of PlaceVisit objects:
+-- {
+--   name: string,        -- Place name (e.g., "Blue Bottle Coffee")
+--   address: string,     -- Full address
+--   lat: number,         -- Latitude
+--   lng: number,         -- Longitude
+--   startTime: string,   -- ISO timestamp when visit started
+--   endTime: string,     -- ISO timestamp when visit ended
+--   duration: number,    -- Duration in minutes
+--   placeId?: string     -- Optional Google Place ID
+-- }
 create table location_data (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references auth.users(id) on delete cascade not null,

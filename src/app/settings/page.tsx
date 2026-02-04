@@ -1,7 +1,8 @@
 import { createServerSupabase } from '@/lib/supabase-server'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
-import { Check, Plus, Calendar, MapPin, Activity, Settings2 } from 'lucide-react'
+import LocationImport from '@/components/LocationImport'
+import { Check, Plus, Calendar, MapPin, Activity } from 'lucide-react'
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase()
@@ -55,22 +56,20 @@ export default async function SettingsPage() {
               </span>
             </div>
 
-            {/* Google Maps */}
-            <div className="px-5 py-4 flex items-center justify-between opacity-50">
-              <div className="flex items-center gap-3">
+            {/* Google Maps / Location History */}
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-emerald-100 rounded-lg">
                   <MapPin className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-zinc-900">Google Maps</h3>
+                  <h3 className="font-medium text-zinc-900">Location History</h3>
                   <p className="text-sm text-zinc-500 mt-0.5">
-                    Track places you visit
+                    Import places from Google Takeout
                   </p>
                 </div>
               </div>
-              <span className="text-sm px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full">
-                Coming Soon
-              </span>
+              <LocationImport />
             </div>
 
             {/* Oura Ring */}
