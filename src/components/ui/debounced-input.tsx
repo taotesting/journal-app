@@ -26,6 +26,7 @@ export const DebouncedInput = memo(function DebouncedInput({
   // Sync external value when not typing
   useEffect(() => {
     if (!isTypingRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Necessary for debounced input sync
       setLocalValue(externalValue)
     }
   }, [externalValue])
