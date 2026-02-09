@@ -230,7 +230,6 @@ export default function EntryForm({
       }
 
       router.push('/entries')
-      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

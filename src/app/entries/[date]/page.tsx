@@ -16,35 +16,39 @@ export default async function EntryPage({ params }: { params: Promise<{ date: st
     redirect('/login')
   }
 
-  const { data: entry } = await supabase
-    .from('entries')
-    .select(`
-      *,
-      entry_tags (
-        tag_id,
-        tags (
-          id,
-          name
+  // Parallelize all DB queries for better performance
+  const [entryResult, tagsResult, locationResult] = await Promise.all([
+    supabase
+      .from('entries')
+      .select(`
+        *,
+        entry_tags (
+          tag_id,
+          tags (
+            id,
+            name
+          )
         )
-      )
-    `)
-    .eq('user_id', user.id)
-    .eq('date', date)
-    .single()
+      `)
+      .eq('user_id', user.id)
+      .eq('date', date)
+      .maybeSingle(),
+    supabase
+      .from('tags')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('name'),
+    supabase
+      .from('location_data')
+      .select('places')
+      .eq('user_id', user.id)
+      .eq('date', date)
+      .maybeSingle(),
+  ])
 
-  const { data: tags } = await supabase
-    .from('tags')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('name')
-
-  // Fetch location data for this date
-  const { data: locationData } = await supabase
-    .from('location_data')
-    .select('places')
-    .eq('user_id', user.id)
-    .eq('date', date)
-    .single()
+  const entry = entryResult.data
+  const tags = tagsResult.data
+  const locationData = locationResult.data
 
   // Parse entry bullets for timeline
   const parsedBullets = entry
